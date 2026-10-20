@@ -8,9 +8,25 @@ Stack: Java 21, Spring Boot 3, PostgreSQL, Flyway, Testcontainers, Docker Compos
 
 ## Run
 
+Everything in Docker (app + PostgreSQL), one command:
+
 ```bash
-docker compose up -d
-mvn spring-boot:run
+docker compose up --build
+```
+
+Or run the app from your IDE / Maven against just the database:
+
+```bash
+docker compose up -d postgres
+LEDGERX_ADMIN_KEY=dev-admin-key ./mvnw spring-boot:run
+```
+
+The containerised app is published on http://localhost:8081 (set `APP_PORT` to change it; running with Maven uses 8080).
+
+Optional Prometheus and Grafana (http://localhost:3000, dashboard "LedgerX"):
+
+```bash
+docker compose --profile monitoring up -d
 ```
 
 ## Test
@@ -18,7 +34,7 @@ mvn spring-boot:run
 Needs Docker running (Testcontainers starts a real PostgreSQL).
 
 ```bash
-mvn verify
+./mvnw verify
 ```
 
 ## Authentication
@@ -52,9 +68,18 @@ Supported currencies: INR, USD, EUR. Amounts are integer minor units (paise, cen
 - `CONDITIONAL_UPDATE` is a lock-free alternative: the debit is one `UPDATE ... WHERE balance >= :amount`, and the two updates run in id order. Select it with `ledgerx.transfer.lock-strategy`.
 - Idempotency: the `Idempotency-Key` row is inserted in the same transaction as the transfer (`ON CONFLICT DO NOTHING`). A concurrent duplicate blocks on the unique index, then replays the stored result (HTTP 200, `Idempotent-Replayed: true`). Reusing a key with a different body returns 409. A failed transfer rolls its key back, so retrying after a failure executes again.
 
+## Operations
+
+- `X-Request-Id` is returned on every response and appears in every log line for that request. Docker runs log JSON (ECS format).
+- Metrics at `/actuator/prometheus`: `ledgerx_transfer_seconds` (count, sum, buckets) tagged by `outcome` and `strategy`, plus Hikari pool and JVM metrics.
+- Reconciliation audits balances against the ledger every 5 minutes and on demand: `GET /admin/reconciliation` (with `X-Admin-Key`). Result is also the gauge `ledgerx_reconciliation_discrepancies`.
+- Load test results: see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) (about 2,200 transfers/s at p99 24 ms with low contention; about 340/s at p99 400 ms when every request hits the same two wallets; 0 failures, ledger reconciled). Design and trade-offs: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Roadmap
 
 - [x] v0.1 Schema, wallets, ledger, basic transfers, Testcontainers
 - [x] v0.2 Idempotency keys, locking strategies, concurrency tests
 - [x] v0.3 Failure injection tests, API-key auth, CI badge
-- [ ] v0.4 Load tests, metrics, reconciliation, architecture doc
+- [x] v0.4 Metrics, reconciliation, Docker, load tests, architecture doc
+- [x] v1.0 Benchmarks recorded in docs/BENCHMARKS.md
+- [ ] Demo GIF
