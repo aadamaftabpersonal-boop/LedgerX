@@ -46,6 +46,26 @@ public class WalletRepository {
                 .list();
     }
 
+    /** Plain read of both wallets, no row locks. */
+    public List<Wallet> readPair(UUID a, UUID b) {
+        return jdbc.sql("SELECT " + COLUMNS + " FROM wallets WHERE id IN (:a, :b) ORDER BY id")
+                .param("a", a)
+                .param("b", b)
+                .query(Wallet.class)
+                .list();
+    }
+
+    /** Atomic check-and-debit: returns false (and changes nothing) when the balance is too low. */
+    public boolean debitIfSufficient(UUID id, long amount) {
+        return jdbc.sql("""
+                UPDATE wallets SET balance = balance - :amount, version = version + 1
+                WHERE id = :id AND balance >= :amount
+                """)
+                .param("amount", amount)
+                .param("id", id)
+                .update() == 1;
+    }
+
     public void applyDelta(UUID id, long delta) {
         jdbc.sql("UPDATE wallets SET balance = balance + :delta, version = version + 1 WHERE id = :id")
                 .param("delta", delta)

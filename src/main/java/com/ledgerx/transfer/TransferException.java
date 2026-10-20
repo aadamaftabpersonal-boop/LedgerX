@@ -18,6 +18,13 @@ public abstract class TransferException extends RuntimeException {
         }
     }
 
+    /** The idempotency key was already used for a different request. */
+    public static class IdempotencyConflict extends TransferException {
+        public IdempotencyConflict(String message) {
+            super(message);
+        }
+    }
+
     public static class Invalid extends TransferException {
         public Invalid(String message) {
             super(message);
