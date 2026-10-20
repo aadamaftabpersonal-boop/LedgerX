@@ -2,6 +2,7 @@ package com.ledgerx;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,7 +38,7 @@ class ApiIT extends AbstractPostgresIT {
                         .content("{\"amount\":5000}"))
                 .andExpect(status().isCreated());
 
-        mvc.perform(post("/transfers").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/transfers").header("Idempotency-Key", java.util.UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fromWalletId\":\"" + alice + "\",\"toWalletId\":\"" + bob + "\",\"amount\":1200}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.amount").value(1200));
@@ -47,11 +48,42 @@ class ApiIT extends AbstractPostgresIT {
     }
 
     @Test
+    void retryWithSameKeyReplaysAndMovesMoneyOnce() throws Exception {
+        String alice = createWallet("alice");
+        String bob = createWallet("bob");
+        mvc.perform(post("/wallets/" + alice + "/deposit").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":1000}")).andExpect(status().isCreated());
+        String body = "{\"fromWalletId\":\"" + alice + "\",\"toWalletId\":\"" + bob + "\",\"amount\":400}";
+
+        mvc.perform(post("/transfers").header("Idempotency-Key", "key-1")
+                .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
+        mvc.perform(post("/transfers").header("Idempotency-Key", "key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Idempotent-Replayed", "true"));
+
+        mvc.perform(get("/wallets/" + alice)).andExpect(jsonPath("$.balance").value(600));
+        mvc.perform(get("/wallets/" + bob)).andExpect(jsonPath("$.balance").value(400));
+
+        String different = body.replace("400", "401");
+        mvc.perform(post("/transfers").header("Idempotency-Key", "key-1")
+                .contentType(MediaType.APPLICATION_JSON).content(different)).andExpect(status().isConflict());
+    }
+
+    @Test
+    void missingIdempotencyKeyReturns400() throws Exception {
+        mvc.perform(post("/transfers").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fromWalletId\":\"00000000-0000-0000-0000-000000000001\","
+                        + "\"toWalletId\":\"00000000-0000-0000-0000-000000000002\",\"amount\":1}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void insufficientFundsReturns422() throws Exception {
         String alice = createWallet("alice");
         String bob = createWallet("bob");
 
-        mvc.perform(post("/transfers").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/transfers").header("Idempotency-Key", java.util.UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fromWalletId\":\"" + alice + "\",\"toWalletId\":\"" + bob + "\",\"amount\":1}"))
                 .andExpect(status().isUnprocessableEntity());
     }
