@@ -9,11 +9,24 @@ spring:
     enabled: true
 
 ledgerx:
-  # Enables POST /admin/clients, which creates API clients. Leave empty to disable it.
+  # Enables /admin/*, which creates API clients and runs reconciliation. Leave empty to disable.
   admin-key: ${LEDGERX_ADMIN_KEY:}
+  transfer:
+    lock-strategy: PESSIMISTIC # or CONDITIONAL_UPDATE
+  reconciliation:
+    enabled: true
+    interval: PT5M
+    initial-delay: PT1M
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ledgerx
