@@ -2,6 +2,7 @@ package com.ledgerx.api;
 
 import com.ledgerx.transfer.TransferException;
 import com.ledgerx.wallet.UnsupportedCurrencyException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +19,16 @@ public class ApiExceptionHandler {
     @ExceptionHandler(TransferException.InsufficientFunds.class)
     ProblemDetail insufficientFunds(TransferException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler(TransferException.IdempotencyConflict.class)
+    ProblemDetail idempotencyConflict(TransferException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ProblemDetail invalidParameter(ConstraintViolationException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
     }
 
     @ExceptionHandler({TransferException.Invalid.class, UnsupportedCurrencyException.class})
