@@ -6,6 +6,7 @@ import java.util.UUID;
 /** Balance is in minor units (e.g. paise). */
 public record Wallet(
         UUID id,
+        UUID clientId,
         String owner,
         String currency,
         String kind,

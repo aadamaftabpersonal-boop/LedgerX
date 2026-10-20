@@ -39,18 +39,20 @@ public class TransferService {
      * duplicate blocks on the key's unique index until the first request finishes, then replays its result.
      */
     @Transactional
-    public TransferResult transfer(String idempotencyKey, UUID fromId, UUID toId, long amount) {
+    public TransferResult transfer(UUID clientId, String idempotencyKey, UUID fromId, UUID toId, long amount) {
         String hash = requestHash(fromId, toId, amount);
         int inserted = jdbc.sql("""
-                INSERT INTO idempotency_keys (key, request_hash) VALUES (:key, :hash)
-                ON CONFLICT (key) DO NOTHING
+                INSERT INTO idempotency_keys (client_id, key, request_hash) VALUES (:client, :key, :hash)
+                ON CONFLICT (client_id, key) DO NOTHING
                 """)
+                .param("client", clientId)
                 .param("key", idempotencyKey)
                 .param("hash", hash)
                 .update();
 
         if (inserted == 0) {
-            String storedHash = jdbc.sql("SELECT request_hash FROM idempotency_keys WHERE key = :key")
+            String storedHash = jdbc.sql("SELECT request_hash FROM idempotency_keys WHERE client_id = :client AND key = :key")
+                    .param("client", clientId)
                     .param("key", idempotencyKey)
                     .query(String.class)
                     .single();
@@ -58,25 +60,27 @@ public class TransferService {
                 throw new TransferException.IdempotencyConflict(
                         "Idempotency key was already used with a different request");
             }
-            UUID storedTransferId = jdbc.sql("SELECT transfer_id FROM idempotency_keys WHERE key = :key")
+            UUID storedTransferId = jdbc.sql("SELECT transfer_id FROM idempotency_keys WHERE client_id = :client AND key = :key")
+                    .param("client", clientId)
                     .param("key", idempotencyKey)
                     .query(UUID.class)
                     .single();
             return new TransferResult(findTransfer(storedTransferId), true);
         }
 
-        Transfer transfer = execute(fromId, toId, amount, false);
-        jdbc.sql("UPDATE idempotency_keys SET transfer_id = :t WHERE key = :key")
+        Transfer transfer = execute(fromId, toId, amount, false, clientId);
+        jdbc.sql("UPDATE idempotency_keys SET transfer_id = :t WHERE client_id = :client AND key = :key")
                 .param("t", transfer.id())
+                .param("client", clientId)
                 .param("key", idempotencyKey)
                 .update();
         return new TransferResult(transfer, false);
     }
 
-    /** Non-idempotent user-to-user transfer. EXTERNAL wallets cannot be used through this path. */
+    /** Non-idempotent, unauthenticated transfer for internal use and tests. EXTERNAL wallets cannot be used through this path. */
     @Transactional
     public Transfer transfer(UUID fromId, UUID toId, long amount) {
-        return execute(fromId, toId, amount, false);
+        return execute(fromId, toId, amount, false, null);
     }
 
     /** Funds a wallet from the EXTERNAL counterparty of its currency. */
@@ -85,10 +89,11 @@ public class TransferService {
         Wallet target = wallets.findById(walletId)
                 .orElseThrow(() -> new TransferException.WalletNotFound("Wallet not found: " + walletId));
         UUID external = wallets.externalWalletId(target.currency());
-        return execute(external, walletId, amount, true);
+        return execute(external, walletId, amount, true, null);
     }
 
-    private Transfer execute(UUID fromId, UUID toId, long amount, boolean allowExternalSource) {
+    /** {@code actingClient} (when set) must own the source wallet; otherwise the wallet looks nonexistent. */
+    private Transfer execute(UUID fromId, UUID toId, long amount, boolean allowExternalSource, UUID actingClient) {
         if (amount <= 0) {
             throw new TransferException.Invalid("Amount must be positive");
         }
@@ -103,6 +108,10 @@ public class TransferService {
                 : wallets.readPair(fromId, toId);
         Wallet from = find(rows, fromId);
         Wallet to = find(rows, toId);
+
+        if (actingClient != null && !actingClient.equals(from.clientId())) {
+            throw new TransferException.WalletNotFound("Wallet not found: " + fromId);
+        }
 
         if (!from.currency().equals(to.currency())) {
             throw new TransferException.Invalid("Currency mismatch");

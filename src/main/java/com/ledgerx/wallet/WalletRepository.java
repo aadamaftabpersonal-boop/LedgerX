@@ -1,5 +1,6 @@
 package com.ledgerx.wallet;
 
+import java.sql.Types;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class WalletRepository {
 
-    private static final String COLUMNS = "id, owner, currency, kind, balance, version, created_at";
+    private static final String COLUMNS = "id, client_id, owner, currency, kind, balance, version, created_at";
 
     private final JdbcClient jdbc;
 
@@ -17,10 +18,11 @@ public class WalletRepository {
         this.jdbc = jdbc;
     }
 
-    public Wallet create(String owner, String currency) {
+    public Wallet create(UUID clientId, String owner, String currency) {
         UUID id = UUID.randomUUID();
-        jdbc.sql("INSERT INTO wallets (id, owner, currency) VALUES (:id, :owner, :currency)")
+        jdbc.sql("INSERT INTO wallets (id, client_id, owner, currency) VALUES (:id, :clientId, :owner, :currency)")
                 .param("id", id)
+                .param("clientId", clientId, Types.OTHER)
                 .param("owner", owner)
                 .param("currency", currency)
                 .update();
@@ -32,6 +34,11 @@ public class WalletRepository {
                 .param("id", id)
                 .query(Wallet.class)
                 .optional();
+    }
+
+    /** Returns the wallet only if it belongs to the client, so other clients' wallets look nonexistent. */
+    public Optional<Wallet> findOwned(UUID id, UUID clientId) {
+        return findById(id).filter(w -> clientId.equals(w.clientId()));
     }
 
     /**
