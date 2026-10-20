@@ -19,7 +19,7 @@ class TransferServiceIT extends AbstractPostgresIT {
     @Autowired JdbcClient jdbc;
 
     private Wallet fundedWallet(String owner, long amount) {
-        Wallet w = wallets.create(owner, "INR");
+        Wallet w = wallets.create(null, owner, "INR");
         if (amount > 0) {
             transfers.deposit(w.id(), amount);
         }
@@ -63,13 +63,13 @@ class TransferServiceIT extends AbstractPostgresIT {
     @Test
     void rejectsInvalidTransfers() {
         Wallet alice = fundedWallet("alice", 1_000);
-        Wallet usd = wallets.create("carol", "USD");
+        Wallet usd = wallets.create(null, "carol", "USD");
 
         assertThatThrownBy(() -> transfers.transfer(alice.id(), alice.id(), 100))
                 .isInstanceOf(TransferException.Invalid.class);
         assertThatThrownBy(() -> transfers.transfer(alice.id(), usd.id(), 100))
                 .isInstanceOf(TransferException.Invalid.class);
-        assertThatThrownBy(() -> transfers.transfer(alice.id(), wallets.create("bob", "INR").id(), 0))
+        assertThatThrownBy(() -> transfers.transfer(alice.id(), wallets.create(null, "bob", "INR").id(), 0))
                 .isInstanceOf(TransferException.Invalid.class);
         assertThatThrownBy(() -> transfers.transfer(alice.id(), java.util.UUID.randomUUID(), 100))
                 .isInstanceOf(TransferException.WalletNotFound.class);

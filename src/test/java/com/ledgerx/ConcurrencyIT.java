@@ -3,6 +3,7 @@ package com.ledgerx;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.ledgerx.client.ClientRepository;
 import com.ledgerx.transfer.LockStrategy;
 import com.ledgerx.transfer.Transfer;
 import com.ledgerx.transfer.TransferException;
@@ -20,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,14 @@ class ConcurrencyIT extends AbstractPostgresIT {
     @Autowired TransferService transfers;
     @Autowired WalletRepository wallets;
     @Autowired JdbcClient jdbc;
+    @Autowired ClientRepository clients;
+
+    private UUID clientId;
+
+    @BeforeEach
+    void createClient() {
+        clientId = clients.create("test-" + UUID.randomUUID()).client().id();
+    }
 
     @AfterEach
     void restoreDefaultStrategy() {
@@ -39,7 +49,7 @@ class ConcurrencyIT extends AbstractPostgresIT {
     }
 
     private Wallet fundedWallet(String owner, long amount) {
-        Wallet w = wallets.create(owner, "INR");
+        Wallet w = wallets.create(clientId, owner, "INR");
         if (amount > 0) {
             transfers.deposit(w.id(), amount);
         }
@@ -155,7 +165,7 @@ class ConcurrencyIT extends AbstractPostgresIT {
 
         List<Callable<TransferResult>> tasks = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
-            tasks.add(() -> transfers.transfer(key, alice.id(), bob.id(), 700));
+            tasks.add(() -> transfers.transfer(clientId, key, alice.id(), bob.id(), 700));
         }
         List<Outcome<TransferResult>> outcomes = runConcurrently(tasks);
 
@@ -175,9 +185,9 @@ class ConcurrencyIT extends AbstractPostgresIT {
         Wallet bob = fundedWallet("bob", 0);
         String key = "reuse-" + UUID.randomUUID();
 
-        transfers.transfer(key, alice.id(), bob.id(), 100);
+        transfers.transfer(clientId, key, alice.id(), bob.id(), 100);
 
-        assertThatThrownBy(() -> transfers.transfer(key, alice.id(), bob.id(), 200))
+        assertThatThrownBy(() -> transfers.transfer(clientId, key, alice.id(), bob.id(), 200))
                 .isInstanceOf(TransferException.IdempotencyConflict.class);
         assertThat(balanceOf(alice)).isEqualTo(9_900);
     }
@@ -190,11 +200,11 @@ class ConcurrencyIT extends AbstractPostgresIT {
         Wallet bob = fundedWallet("bob", 0);
         String key = "retry-" + UUID.randomUUID();
 
-        assertThatThrownBy(() -> transfers.transfer(key, alice.id(), bob.id(), 100))
+        assertThatThrownBy(() -> transfers.transfer(clientId, key, alice.id(), bob.id(), 100))
                 .isInstanceOf(TransferException.InsufficientFunds.class);
 
         transfers.deposit(alice.id(), 100);
-        TransferResult retry = transfers.transfer(key, alice.id(), bob.id(), 100);
+        TransferResult retry = transfers.transfer(clientId, key, alice.id(), bob.id(), 100);
 
         assertThat(retry.replayed()).isFalse();
         assertThat(balanceOf(bob)).isEqualTo(100);
