@@ -29,6 +29,10 @@ public class TransferService {
         this.lockStrategy = lockStrategy;
     }
 
+    public LockStrategy lockStrategy() {
+        return lockStrategy;
+    }
+
     /** Switches strategy at runtime so tests and benchmarks can compare them. */
     public void setLockStrategy(LockStrategy lockStrategy) {
         this.lockStrategy = lockStrategy;

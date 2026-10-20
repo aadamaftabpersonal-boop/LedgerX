@@ -31,9 +31,11 @@ public class TransferController {
             @Positive long amount) {}
 
     private final TransferService transfers;
+    private final TransferMetrics metrics;
 
-    public TransferController(TransferService transfers) {
+    public TransferController(TransferService transfers, TransferMetrics metrics) {
         this.transfers = transfers;
+        this.metrics = metrics;
     }
 
     /** 201 for a new transfer, 200 plus Idempotent-Replayed: true when the key was already used. */
@@ -42,8 +44,8 @@ public class TransferController {
             @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
             @Valid @RequestBody TransferRequest request) {
-        TransferResult result = transfers.transfer(
-                client.id(), idempotencyKey, request.fromWalletId(), request.toWalletId(), request.amount());
+        TransferResult result = metrics.observe(() -> transfers.transfer(
+                client.id(), idempotencyKey, request.fromWalletId(), request.toWalletId(), request.amount()));
         if (result.replayed()) {
             return ResponseEntity.ok().header("Idempotent-Replayed", "true").body(result.transfer());
         }
