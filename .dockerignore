@@ -1,0 +1,6 @@
+target
+.git
+.idea
+.vscode
+build.log
+loadtest/results

@@ -15,5 +15,65 @@ services:
       timeout: 3s
       retries: 10
 
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledgerx
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${POOL_SIZE:-20}
+      LEDGERX_ADMIN_KEY: ${LEDGERX_ADMIN_KEY:-dev-admin-key}
+      LEDGERX_TRANSFER_LOCK_STRATEGY: ${LOCK_STRATEGY:-PESSIMISTIC}
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+    ports:
+      # Host port is configurable because 8080 is often taken by other software (APP_PORT=8080 to restore).
+      - "${APP_PORT:-8081}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["monitoring"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: ["monitoring"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  k6:
+    image: grafana/k6:0.54.0
+    profiles: ["loadtest"]
+    environment:
+      BASE_URL: http://app:8080
+      ADMIN_KEY: ${LEDGERX_ADMIN_KEY:-dev-admin-key}
+      WALLETS: ${WALLETS:-1000}
+      VUS: ${VUS:-32}
+      DURATION: ${DURATION:-60s}
+    volumes:
+      - ./loadtest:/loadtest
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
   pgdata:
