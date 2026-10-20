@@ -8,6 +8,10 @@ spring:
   flyway:
     enabled: true
 
+ledgerx:
+  # Enables POST /admin/clients, which creates API clients. Leave empty to disable it.
+  admin-key: ${LEDGERX_ADMIN_KEY:}
+
 management:
   endpoints:
     web:

@@ -1,6 +1,8 @@
 package com.ledgerx.api;
 
+import com.ledgerx.client.Client;
 import com.ledgerx.transfer.Transfer;
+import com.ledgerx.transfer.TransferException;
 import com.ledgerx.transfer.TransferService;
 import com.ledgerx.wallet.Wallet;
 import com.ledgerx.wallet.WalletRepository;
@@ -14,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -37,20 +40,29 @@ public class WalletController {
     }
 
     @PostMapping
-    public ResponseEntity<Wallet> create(@Valid @RequestBody CreateWalletRequest request) {
+    public ResponseEntity<Wallet> create(
+            @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,
+            @Valid @RequestBody CreateWalletRequest request) {
         // Fails fast on unsupported currencies instead of creating a wallet nobody can fund.
         wallets.externalWalletId(request.currency());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(wallets.create(request.owner(), request.currency()));
+                .body(wallets.create(client.id(), request.owner(), request.currency()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Wallet> get(@PathVariable UUID id) {
-        return wallets.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Wallet> get(
+            @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client, @PathVariable UUID id) {
+        return wallets.findOwned(id, client.id()).map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/deposit")
-    public ResponseEntity<Transfer> deposit(@PathVariable UUID id, @Valid @RequestBody DepositRequest request) {
+    public ResponseEntity<Transfer> deposit(
+            @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,
+            @PathVariable UUID id,
+            @Valid @RequestBody DepositRequest request) {
+        wallets.findOwned(id, client.id())
+                .orElseThrow(() -> new TransferException.WalletNotFound("Wallet not found: " + id));
         return ResponseEntity.status(HttpStatus.CREATED).body(transfers.deposit(id, request.amount()));
     }
 }

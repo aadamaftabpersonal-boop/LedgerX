@@ -1,5 +1,6 @@
 package com.ledgerx.api;
 
+import com.ledgerx.client.Client;
 import com.ledgerx.transfer.Transfer;
 import com.ledgerx.transfer.TransferResult;
 import com.ledgerx.transfer.TransferService;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,10 +39,11 @@ public class TransferController {
     /** 201 for a new transfer, 200 plus Idempotent-Replayed: true when the key was already used. */
     @PostMapping
     public ResponseEntity<Transfer> create(
+            @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 255) String idempotencyKey,
             @Valid @RequestBody TransferRequest request) {
         TransferResult result = transfers.transfer(
-                idempotencyKey, request.fromWalletId(), request.toWalletId(), request.amount());
+                client.id(), idempotencyKey, request.fromWalletId(), request.toWalletId(), request.amount());
         if (result.replayed()) {
             return ResponseEntity.ok().header("Idempotent-Replayed", "true").body(result.transfer());
         }
