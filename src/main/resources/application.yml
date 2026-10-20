@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: ledgerx
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ledgerx
+    username: ledgerx
+    password: ledgerx
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
