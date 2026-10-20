@@ -4,9 +4,9 @@
 
 A transaction-safe wallet and payments engine: consistent balances under concurrent requests, no duplicate transfers, an append-only double-entry ledger.
 
-![Grafana dashboard after a load test: transfers per second, latency percentiles, connection pool, reconciliation at 0](docs/dashboard.png)
+![Grafana dashboard filling in live during a k6 load test: transfers per second, latency percentiles, connection pool, reconciliation at 0](docs/demo.gif)
 
-*Grafana dashboard (provisioned from `observability/`) after a 45 s k6 load test: transfer rate, server-side latency percentiles, connection pool usage, and the reconciliation check at 0. Client-side benchmark numbers are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).*
+*The provisioned Grafana dashboard (`observability/`) during a 45 s k6 load test: transfer rate, server-side latency percentiles, connection pool usage, and the reconciliation check staying at 0. Client-side benchmark numbers are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).*
 
 Stack: Java 21, Spring Boot 3, PostgreSQL, Flyway, Testcontainers, Docker Compose.
 
@@ -86,4 +86,4 @@ Supported currencies: INR, USD, EUR. Amounts are integer minor units (paise, cen
 - [x] v0.3 Failure injection tests, API-key auth, CI badge
 - [x] v0.4 Metrics, reconciliation, Docker, load tests, architecture doc
 - [x] v1.0 Benchmarks recorded in docs/BENCHMARKS.md
-- [x] Dashboard screenshot
+- [x] Demo GIF
