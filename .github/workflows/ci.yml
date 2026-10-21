@@ -17,7 +17,7 @@ jobs:
     name: Build, test and coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -42,7 +42,7 @@ jobs:
     name: Docker image and end-to-end smoke test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build the image and start the stack
         run: docker compose up -d --build --wait --wait-timeout 240 app
       - name: Smoke test the running API
