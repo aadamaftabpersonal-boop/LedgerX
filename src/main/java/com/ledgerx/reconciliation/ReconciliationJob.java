@@ -28,9 +28,9 @@ public class ReconciliationJob {
             log.info("reconciliation ok");
         } else {
             log.error("reconciliation found {} discrepancies: balanceMismatches={} unbalancedTransfers={} "
-                            + "malformedTransfers={} overdrawnWallets={} totalBalance={}",
+                            + "malformedTransfers={} inconsistentReversals={} overdrawnWallets={} totalBalance={}",
                     report.discrepancies(), report.balanceMismatches(), report.unbalancedTransfers(),
-                    report.malformedTransfers(), report.overdrawnWallets(), report.totalBalance());
+                    report.malformedTransfers(), report.inconsistentReversals(), report.overdrawnWallets(), report.totalBalance());
         }
     }
 }

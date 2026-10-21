@@ -27,6 +27,7 @@ public class ReconciliationService {
             List<BalanceMismatch> balanceMismatches,
             List<UUID> unbalancedTransfers,
             List<UUID> malformedTransfers,
+            List<UUID> inconsistentReversals,
             List<UUID> overdrawnWallets,
             long totalBalance) {}
 
@@ -58,6 +59,12 @@ public class ReconciliationService {
                 GROUP BY t.id HAVING COUNT(l.id) <> 2
                 """).query(UUID.class).list();
 
+        // A reversal must mirror the transfer it undoes: same amount, opposite direction.
+        List<UUID> inconsistentReversals = jdbc.sql("""
+                SELECT r.id FROM transfers r JOIN transfers o ON o.id = r.reverses_transfer_id
+                WHERE r.amount <> o.amount OR r.from_wallet_id <> o.to_wallet_id OR r.to_wallet_id <> o.from_wallet_id
+                """).query(UUID.class).list();
+
         List<UUID> overdrawn = jdbc.sql("SELECT id FROM wallets WHERE kind = 'USER' AND balance < 0")
                 .query(UUID.class).list();
 
@@ -65,10 +72,10 @@ public class ReconciliationService {
         long total = jdbc.sql("SELECT COALESCE(SUM(balance), 0)::bigint FROM wallets")
                 .query(Long.class).single();
 
-        int discrepancies = mismatches.size() + unbalanced.size() + malformed.size() + overdrawn.size()
+        int discrepancies = mismatches.size() + unbalanced.size() + malformed.size() + inconsistentReversals.size() + overdrawn.size()
                 + (total != 0 ? 1 : 0);
         discrepancyGauge.set(discrepancies);
         return new Report(OffsetDateTime.now(), discrepancies == 0, discrepancies,
-                mismatches, unbalanced, malformed, overdrawn, total);
+                mismatches, unbalanced, malformed, inconsistentReversals, overdrawn, total);
     }
 }

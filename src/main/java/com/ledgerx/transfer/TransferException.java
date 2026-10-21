@@ -18,6 +18,19 @@ public abstract class TransferException extends RuntimeException {
         }
     }
 
+    public static class TransferNotFound extends TransferException {
+        public TransferNotFound(String message) {
+            super(message);
+        }
+    }
+
+    /** A transfer can be reversed at most once. */
+    public static class AlreadyReversed extends TransferException {
+        public AlreadyReversed(String message) {
+            super(message);
+        }
+    }
+
     /** The idempotency key was already used for a different request. */
     public static class IdempotencyConflict extends TransferException {
         public IdempotencyConflict(String message) {
