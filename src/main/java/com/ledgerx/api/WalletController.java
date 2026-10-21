@@ -6,6 +6,8 @@ import com.ledgerx.transfer.TransferException;
 import com.ledgerx.transfer.TransferService;
 import com.ledgerx.wallet.Wallet;
 import com.ledgerx.wallet.WalletRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "Wallets")
 @RestController
 @RequestMapping("/wallets")
 public class WalletController {
@@ -39,6 +42,7 @@ public class WalletController {
         this.transfers = transfers;
     }
 
+    @Operation(summary = "Create a wallet owned by the calling client")
     @PostMapping
     public ResponseEntity<Wallet> create(
             @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,
@@ -49,6 +53,7 @@ public class WalletController {
                 .body(wallets.create(client.id(), request.owner(), request.currency()));
     }
 
+    @Operation(summary = "Read one of your wallets", description = "Wallets of other clients return 404.")
     @GetMapping("/{id}")
     public ResponseEntity<Wallet> get(
             @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client, @PathVariable UUID id) {
@@ -56,6 +61,7 @@ public class WalletController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(summary = "Fund one of your wallets from the external counterparty")
     @PostMapping("/{id}/deposit")
     public ResponseEntity<Transfer> deposit(
             @RequestAttribute(ApiKeyAuthFilter.CLIENT_ATTRIBUTE) Client client,

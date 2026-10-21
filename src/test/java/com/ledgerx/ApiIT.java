@@ -183,4 +183,67 @@ class ApiIT extends AbstractPostgresIT {
         mvc.perform(get("/wallets/00000000-0000-0000-0000-000000000042").header("X-API-Key", apiKey))
                 .andExpect(status().isNotFound());
     }
+
+    private String transferId(String apiKey, String key, String from, String to, long amount) throws Exception {
+        String body = mvc.perform(transfer(apiKey, key, from, to, amount)).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return json.readTree(body).get("id").asText();
+    }
+
+    private MockHttpServletRequestBuilder reverse(String apiKey, String key, String transferId) {
+        return post("/transfers/" + transferId + "/reverse").header("X-API-Key", apiKey).header("Idempotency-Key", key);
+    }
+
+    @Test
+    void recipientCanRefundATransferOnceAndMoneyReturns() throws Exception {
+        String payerKey = createClientApiKey();
+        String merchantKey = createClientApiKey();
+        String payer = createWallet(payerKey, "payer");
+        String merchant = createWallet(merchantKey, "merchant");
+        deposit(payerKey, payer, 1000);
+        String payment = transferId(payerKey, "pay-1", payer, merchant, 400);
+
+        mvc.perform(reverse(merchantKey, "refund-1", payment))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reversesTransferId").value(payment))
+                .andExpect(jsonPath("$.amount").value(400));
+        mvc.perform(reverse(merchantKey, "refund-1", payment))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Idempotent-Replayed", "true"));
+        mvc.perform(reverse(merchantKey, "refund-2", payment)).andExpect(status().isConflict());
+
+        mvc.perform(get("/wallets/" + payer).header("X-API-Key", payerKey)).andExpect(jsonPath("$.balance").value(1000));
+        mvc.perform(get("/wallets/" + merchant).header("X-API-Key", merchantKey)).andExpect(jsonPath("$.balance").value(0));
+    }
+
+    @Test
+    void refundIsRejectedForNonRecipientsAndWhenFundsAreGone() throws Exception {
+        String payerKey = createClientApiKey();
+        String merchantKey = createClientApiKey();
+        String payer = createWallet(payerKey, "payer");
+        String merchant = createWallet(merchantKey, "merchant");
+        String elsewhere = createWallet(merchantKey, "elsewhere");
+        deposit(payerKey, payer, 1000);
+        String payment = transferId(payerKey, "pay-1", payer, merchant, 400);
+
+        mvc.perform(reverse(payerKey, "r-1", payment)).andExpect(status().isNotFound()); // sender cannot refund itself
+        transferId(merchantKey, "spend-1", merchant, elsewhere, 300);
+        mvc.perform(reverse(merchantKey, "r-2", payment)).andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void transfersAreReadableOnlyByTheirParties() throws Exception {
+        String payerKey = createClientApiKey();
+        String merchantKey = createClientApiKey();
+        String strangerKey = createClientApiKey();
+        String payer = createWallet(payerKey, "payer");
+        String merchant = createWallet(merchantKey, "merchant");
+        deposit(payerKey, payer, 1000);
+        String payment = transferId(payerKey, "pay-1", payer, merchant, 400);
+
+        mvc.perform(get("/transfers/" + payment).header("X-API-Key", payerKey))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(400));
+        mvc.perform(get("/transfers/" + payment).header("X-API-Key", merchantKey)).andExpect(status().isOk());
+        mvc.perform(get("/transfers/" + payment).header("X-API-Key", strangerKey)).andExpect(status().isNotFound());
+    }
 }

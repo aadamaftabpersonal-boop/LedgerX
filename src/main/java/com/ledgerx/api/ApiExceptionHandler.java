@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
-    @ExceptionHandler(TransferException.WalletNotFound.class)
+    @ExceptionHandler({TransferException.WalletNotFound.class, TransferException.TransferNotFound.class})
     ProblemDetail notFound(TransferException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
@@ -21,7 +21,7 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
     }
 
-    @ExceptionHandler(TransferException.IdempotencyConflict.class)
+    @ExceptionHandler({TransferException.IdempotencyConflict.class, TransferException.AlreadyReversed.class})
     ProblemDetail idempotencyConflict(TransferException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }

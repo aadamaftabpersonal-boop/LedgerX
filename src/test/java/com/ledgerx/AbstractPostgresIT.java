@@ -10,7 +10,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * classes, so a container that stopped after each class would leave later classes with a dead pool.
  * Testcontainers' Ryuk sidecar removes the container when the JVM exits.
  */
-@SpringBootTest(properties = "ledgerx.admin-key=test-admin-key")
+@SpringBootTest(properties = {"ledgerx.admin-key=test-admin-key", "ledgerx.outbox.enabled=false", "ledgerx.rate-limit.enabled=false"})
 public abstract class AbstractPostgresIT {
 
     @ServiceConnection
