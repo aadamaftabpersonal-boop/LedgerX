@@ -1,5 +1,10 @@
 # Benchmarks
 
+> **Status: the tables below were measured at v0.4, before reversals, the transactional outbox and rate limiting
+> existed.** The outbox adds one more insert (plus JSON serialisation) to every transfer, so current throughput will
+> be somewhat lower. The runner now repeats each configuration and reports median and range; run it to refresh the
+> numbers before quoting any of them.
+
 Measured on one laptop with the app, PostgreSQL and the load generator all running on it. These numbers show how the
 two lock strategies behave relative to each other and to contention. They are not a statement of production capacity.
 
@@ -7,12 +12,15 @@ two lock strategies behave relative to each other and to contention. They are no
 
 ```powershell
 # Docker Desktop running; close other heavy programs first.
-./loadtest/run.ps1                       # 60s per run, 32 virtual users
-./loadtest/run.ps1 -Duration 15s -Vus 16 # quicker smoke test
+./loadtest/run.ps1                        # 3 runs of 60 s per configuration (about 25 minutes)
+./loadtest/run.ps1 -Repeats 1 -Duration 15s   # quick smoke test; do not quote these numbers
 ```
 
+The table printed at the end shows **median (min-max)** over the repeats. Treat a gap between the two strategies as
+real only if their ranges do not overlap; otherwise it is within run-to-run noise.
+
 The script starts a fresh stack (new database volume) per lock strategy, runs k6 at two contention levels, and checks
-reconciliation afterwards.
+reconciliation afterwards. Rate limiting is switched off for these runs because a single client sends all the load.
 
 - **1000 wallets (low contention):** each transfer picks two random wallets out of 1000, so rows are rarely shared.
 - **2 wallets (high contention):** every transfer fights over the same two rows.
@@ -30,7 +38,7 @@ reconciliation afterwards.
 | Database | PostgreSQL 16 in Docker, default settings |
 | Load generator | k6 0.54 in Docker, 32 virtual users, 60 s per run, same machine |
 
-## Results (one 60 s run per row)
+## Results at v0.4 (one 60 s run per row, before the outbox)
 
 | Strategy | Wallets | Throughput | p50 | p95 | p99 | max | Failed |
 |---|---|---|---|---|---|---|---|
@@ -69,7 +77,7 @@ would need PostgreSQL wait-event data (`pg_stat_activity`) during a run.
 
 ## Limitations
 
-- Single run per row; no confidence intervals.
+- The tables above are single runs with no confidence intervals; `run.ps1` now produces repeated runs with ranges.
 - Application, database and load generator share one machine and compete for CPU and disk.
 - Default PostgreSQL settings (`synchronous_commit` on); results would differ with tuned durability settings.
 - Transfers are uniformly random across wallets. Real traffic is often skewed towards a few hot wallets, which is
