@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /build
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
@@ -7,7 +7,7 @@ RUN sed -i 's/\r$//' mvnw && chmod +x mvnw && ./mvnw -q -B dependency:go-offline
 COPY src src
 RUN ./mvnw -q -B -DskipTests package
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /build/target/ledgerx-*.jar app.jar
 EXPOSE 8080
