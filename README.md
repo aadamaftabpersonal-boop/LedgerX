@@ -186,22 +186,21 @@ Any non-2xx response or timeout counts as a failure and is retried with exponent
 
 ## Performance
 
-Load test: k6, 32 virtual users, 60 s per run, one transfer of 1 paisa per request. One laptop (Intel Core i7-13650HX) runs the application, PostgreSQL and the load generator together, so the numbers show relative behaviour, not production capacity.
-
-**These figures were measured at v0.4, before reversals, the outbox and rate limiting were added.** The outbox adds one more insert to every transfer, so current throughput will be somewhat lower. Re-run `./loadtest/run.ps1` (3 repeats per configuration, reports median and range) to refresh them before quoting any number.
+Load test: k6, 32 virtual users, 3 runs of 60 s per configuration, one transfer of 1 paisa per request, rate limiting off. One laptop (Intel Core i7-13650HX) runs the application, PostgreSQL and the load generator together, so the numbers show relative behaviour, not production capacity. Values are the median, with the min-max range over the 3 runs in brackets.
 
 | Lock strategy | Wallets | Throughput | p50 | p95 | p99 | Failed |
 |---|---|---|---|---|---|---|
-| Pessimistic (`FOR UPDATE`) | 1000 | 2,224 transfers/s | 12.1 ms | 18.5 ms | 23.9 ms | 0% |
-| Conditional update | 1000 | 2,066 transfers/s | 12.9 ms | 19.4 ms | 26.5 ms | 0% |
-| Pessimistic (`FOR UPDATE`) | 2 | 340 transfers/s | 60.4 ms | 250.4 ms | 401.0 ms | 0% |
-| Conditional update | 2 | 351 transfers/s | 44.5 ms | 274.8 ms | 439.5 ms | 0% |
+| Pessimistic (`FOR UPDATE`) | 1000 | 1,641/s (1,359-1,694) | 16.1 ms | 25.1 ms | 32.8 ms | 0% |
+| Conditional update | 1000 | 1,599/s (1,175-1,660) | 15.8 ms | 25.3 ms | 35.5 ms | 0% |
+| Pessimistic (`FOR UPDATE`) | 2 | 172/s (169-173) | 144.9 ms | 432.5 ms | 634.6 ms | 0% |
+| Conditional update | 2 | 170/s (166-173) | 157.3 ms | 402.1 ms | 581.9 ms | 0% |
 
-- Contention matters far more than the locking strategy: when every request hits the same two wallets, throughput drops about 6x and p99 latency rises about 17x.
-- The two strategies are not meaningfully different in these single runs. The gaps change sign between contention levels and are within run-to-run noise.
-- After the runs, reconciliation reported zero discrepancies.
+- Contention matters far more than the locking strategy: when every request hits the same two wallets, throughput drops about 10x and p99 latency rises about 18x.
+- The two strategies are indistinguishable: their ranges overlap in every configuration, and the high-contention ranges are tight (about 2% wide), so the tie is a measured result.
+- No request failed in 12 runs, and reconciliation reported zero discrepancies afterwards.
+- Event delivery has a measurable cost only under extreme contention: an ablation with the dispatcher switched off gave about 31% higher throughput when all requests hit two wallets (249 vs 172 transfers/s, non-overlapping ranges) and no measurable difference with 1000 wallets.
 
-Method, environment and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+Method, environment, comparison with the earlier pre-outbox figures, and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). Reproduce with `./loadtest/run.ps1`.
 
 ## Architecture
 
@@ -304,5 +303,6 @@ docs/               architecture, benchmarks, demo
 - One currency per transfer; no foreign-exchange transfers.
 - Reconciliation detects problems but does not repair them.
 - Event delivery is at-least-once and unordered under retries; consumers must deduplicate on the event id.
-- Benchmarks are single-machine and pre-date the outbox; see [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- Benchmarks are single-machine (application, database and load generator share one laptop); see [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- The event dispatcher costs about 30% of throughput when every request contends for the same rows (see the ablation in [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); batching its updates is untried.
 - Possible next steps: pluggable broker publishers (Kafka, SQS) behind the existing `EventPublisher` interface, scoped API keys, a Redis-backed rate limiter, and automated repair proposals from reconciliation.
