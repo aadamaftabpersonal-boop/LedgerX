@@ -2,7 +2,7 @@
 
 **A transaction-safe wallet and payments engine.** Balances stay correct under concurrent requests, retried requests never move money twice, refunds compensate instead of rewriting history, and every movement is recorded in an append-only double-entry ledger.
 
-![CI](https://github.com/aadamaftabpersonal-boop/LegderX/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/aadamaftabpersonal-boop/LedgerX/actions/workflows/ci.yml/badge.svg)
 ![Java 21](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-6DB33F)
 ![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-336791)

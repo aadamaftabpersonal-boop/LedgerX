@@ -31,7 +31,7 @@ reconciliation afterwards. Rate limiting is switched off for these runs because 
 | | |
 |---|---|
 | CPU | 13th Gen Intel Core i7-13650HX, 14 cores / 20 threads |
-| RAM | (fill in) |
+| RAM | 23.7 GB usable (as reported by Windows) |
 | OS / Docker | Windows 11, Docker Desktop 4.81 (WSL2 backend) |
 | App | Spring Boot 3.5, Java 21, Hikari pool of 20 connections |
 | Database | PostgreSQL 16 in Docker, default settings |
